@@ -6,7 +6,9 @@ Reads SwimTopia CSV exports from data/, renders HTML schedule pages, outputs to 
 Expected files in data/:
   - red.csv, white.csv, blue.csv  (division dual meet schedules)
   - invitationals.csv              (league-wide invitationals)
-  - rosters.yaml                   (division roster links)
+
+Division rosters are derived automatically from the schedule CSVs.
+Team metadata (display names, roster URL slugs) lives in TEAM_MAP below.
 
 Run: python build.py
 """
@@ -17,29 +19,34 @@ from datetime import datetime
 from pathlib import Path
 
 import jinja2
-import yaml
 
-# Team abbreviation → display name (from SwimTopia export codes)
-TEAM_NAME_MAP = {
-    "BLMAR": "Beaconsdale",
-    "COL": "Colony",
-    "CV": "Coventry",
-    "EL": "Elizabeth Lake",
-    "GWRA": "George Wythe",
-    "GG": "Glendale",
-    "HW": "Hidenwood",
-    "JRCC": "James River",
-    "KCD": "Kiln Creek",
-    "MBKMT": "Marlbank",
-    "NHM": "Northampton",
-    "POQ": "Poquoson",
-    "RRST": "Riverdale",
-    "RMMR": "Running Man",
-    "WW": "Wendwood",
-    "WO": "Willow Oaks",
-    "WPPIR": "Windy Point",
-    "WYCC": "Warwick Yacht",
+# Team abbreviation → display name + roster URL slug
+# Roster URLs follow the pattern: https://www.gpsaswimming.org/{roster_slug}
+TEAM_MAP = {
+    "BLMAR": {"name": "Beaconsdale", "roster": "roster-beaconsdale-blue-marlins"},
+    "BLMR":  {"name": "Beaconsdale", "roster": "roster-beaconsdale-blue-marlins"},
+    "COL":   {"name": "Colony",      "roster": "roster-colony-cudas"},
+    "CV":    {"name": "Coventry",    "roster": "roster-coventry-sailfish"},
+    "EL":    {"name": "Elizabeth Lake", "roster": "roster-elizabeth-lake-tideriders"},
+    "GWRA":  {"name": "George Wythe", "roster": "roster-george-wythe-recreation-association"},
+    "GG":    {"name": "Glendale",    "roster": "roster-glendale-gators"},
+    "HW":    {"name": "Hidenwood",   "roster": "roster-hidenwood-tarpons"},
+    "JRCC":  {"name": "James River", "roster": "roster-james-river-river-ratz"},
+    "KCD":   {"name": "Kiln Creek",  "roster": "roster-kiln-creek-dolphins"},
+    "MBKMT": {"name": "Marlbank",    "roster": "roster-marlbank-mudtoads"},
+    "NHM":   {"name": "Northampton", "roster": "roster-northampton"},
+    "POQ":   {"name": "Poquoson",    "roster": "roster-poquoson-barracudas"},
+    "RRST":  {"name": "Riverdale",   "roster": "roster-riverdale-rays"},
+    "RMMR":  {"name": "Running Man", "roster": "roster-running-man-manta-rays"},
+    "VG":    {"name": "Village Green", "roster": "roster-village-green-patriots"},
+    "WW":    {"name": "Wendwood",    "roster": "roster-wendwood-wahoos"},
+    "WO":    {"name": "Willow Oaks", "roster": "roster-willow-oaks-sting-rays"},
+    "WPPIR": {"name": "Windy Point", "roster": "roster-windy-point-piranhas"},
+    "WYCC":  {"name": "Warwick Yacht", "roster": "roster-warwick-yacht-sea-turtles"},
+    "WYTHE": {"name": "Wythe",       "roster": "roster-wythe-wahoos"},
 }
+
+ROSTER_BASE_URL = "https://www.gpsaswimming.org"
 
 DIVISIONS = ["red", "white", "blue"]
 
@@ -56,7 +63,33 @@ def format_date_header(dt):
 
 def team_name(abbr):
     """Resolve team abbreviation to display name."""
-    return TEAM_NAME_MAP.get(abbr.strip(), abbr.strip())
+    entry = TEAM_MAP.get(abbr.strip())
+    return entry["name"] if entry else abbr.strip()
+
+
+def team_roster_url(abbr):
+    """Resolve team abbreviation to full roster URL."""
+    entry = TEAM_MAP.get(abbr.strip())
+    if entry:
+        return f"{ROSTER_BASE_URL}/{entry['roster']}"
+    return None
+
+
+def extract_teams_from_csv(path):
+    """Extract unique team abbreviations from a division CSV, deduplicated by name."""
+    abbrs = set()
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            abbrs.add(row["HomeTeam"].strip())
+            abbrs.add(row["VisitingTeam"].strip())
+    # Deduplicate aliases (e.g. BLMAR and BLMR both → Beaconsdale)
+    seen_names = {}
+    for a in abbrs:
+        name = team_name(a)
+        if name not in seen_names:
+            seen_names[name] = a
+    return sorted(seen_names.values(), key=lambda a: team_name(a))
 
 
 def load_division_csv(path):
@@ -120,14 +153,24 @@ def build():
 
     year = detect_year(data_dir)
 
-    # Build division schedule pages
+    # Build division schedule pages and collect rosters
     schedule_template = env.get_template("schedule.html.j2")
+    division_rosters = {}
+
     for division in DIVISIONS:
         csv_path = data_dir / f"{division}.csv"
         if not csv_path.exists():
             print(f"  Skipping {division} (no {csv_path})")
             continue
 
+        # Extract teams for roster page
+        team_abbrs = extract_teams_from_csv(csv_path)
+        division_rosters[division] = [
+            {"name": team_name(a), "url": team_roster_url(a)}
+            for a in team_abbrs
+        ]
+
+        # Build schedule page
         date_groups = load_division_csv(csv_path)
         output = schedule_template.render(
             division=division,
@@ -137,7 +180,7 @@ def build():
         )
         out_path = dist / f"schedule-{division}.html"
         out_path.write_text(output)
-        print(f"  Built {out_path.name} ({sum(len(g['meets']) for g in date_groups)} meets)")
+        print(f"  Built {out_path.name} ({sum(len(g['meets']) for g in date_groups)} meets, {len(team_abbrs)} teams)")
 
     # Build invitationals page
     inv_path = data_dir / "invitationals.csv"
@@ -151,21 +194,16 @@ def build():
     else:
         print(f"  Skipping invitationals (no {inv_path})")
 
-    # Build divisions (rosters) page
-    rosters_path = data_dir / "rosters.yaml"
-    if rosters_path.exists():
-        with open(rosters_path) as f:
-            rosters = yaml.safe_load(f)
+    # Build divisions (rosters) page from CSV-derived teams
+    if division_rosters:
         divisions_template = env.get_template("divisions.html.j2")
         output = divisions_template.render(
-            divisions=[rosters.get(d, []) for d in DIVISIONS],
+            divisions=[division_rosters.get(d, []) for d in DIVISIONS],
             year=year,
         )
         out_path = dist / "divisions.html"
         out_path.write_text(output)
         print(f"  Built {out_path.name}")
-    else:
-        print(f"  Skipping divisions (no {rosters_path})")
 
     # Build meet schedules header page
     header_template = env.get_template("header.html.j2")
