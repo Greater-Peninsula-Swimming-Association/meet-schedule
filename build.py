@@ -3,9 +3,10 @@
 Build script for GPSA Meet Schedule site.
 Reads SwimTopia CSV exports from data/, renders HTML schedule pages, outputs to dist/.
 
-Expected CSV files in data/:
+Expected files in data/:
   - red.csv, white.csv, blue.csv  (division dual meet schedules)
   - invitationals.csv              (league-wide invitationals)
+  - rosters.yaml                   (division roster links)
 
 Run: python build.py
 """
@@ -16,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 import jinja2
+import yaml
 
 # Team abbreviation → display name (from SwimTopia export codes)
 TEAM_NAME_MAP = {
@@ -148,6 +150,28 @@ def build():
         print(f"  Built {out_path.name} ({len(events)} events)")
     else:
         print(f"  Skipping invitationals (no {inv_path})")
+
+    # Build divisions (rosters) page
+    rosters_path = data_dir / "rosters.yaml"
+    if rosters_path.exists():
+        with open(rosters_path) as f:
+            rosters = yaml.safe_load(f)
+        divisions_template = env.get_template("divisions.html.j2")
+        output = divisions_template.render(
+            divisions=[rosters.get(d, []) for d in DIVISIONS],
+            year=year,
+        )
+        out_path = dist / "divisions.html"
+        out_path.write_text(output)
+        print(f"  Built {out_path.name}")
+    else:
+        print(f"  Skipping divisions (no {rosters_path})")
+
+    # Build meet schedules header page
+    header_template = env.get_template("header.html.j2")
+    output = header_template.render(year=year)
+    (dist / "header.html").write_text(output)
+    print("  Built header.html")
 
     # Copy CNAME if present
     if Path("CNAME").exists():
