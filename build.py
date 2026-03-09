@@ -20,30 +20,31 @@ from pathlib import Path
 
 import jinja2
 
-# Team abbreviation → display name + roster URL slug
-# Roster URLs follow the pattern: https://www.gpsaswimming.org/{roster_slug}
+# Team abbreviation → display name, roster URL slug, and teams page anchor
+# Roster URLs follow the pattern: https://www.gpsaswimming.org/{roster}
+# Anchors match the SwimTopia teams page section IDs
 TEAM_MAP = {
-    "BLMAR": {"name": "Beaconsdale", "roster": "roster-beaconsdale-blue-marlins"},
-    "BLMR":  {"name": "Beaconsdale", "roster": "roster-beaconsdale-blue-marlins"},
-    "COL":   {"name": "Colony",      "roster": "roster-colony-cudas"},
-    "CV":    {"name": "Coventry",    "roster": "roster-coventry-sailfish"},
-    "EL":    {"name": "Elizabeth Lake", "roster": "roster-elizabeth-lake-tideriders"},
-    "GWRA":  {"name": "George Wythe", "roster": "roster-george-wythe-recreation-association"},
-    "GG":    {"name": "Glendale",    "roster": "roster-glendale-gators"},
-    "HW":    {"name": "Hidenwood",   "roster": "roster-hidenwood-tarpons"},
-    "JRCC":  {"name": "James River", "roster": "roster-james-river-river-ratz"},
-    "KCD":   {"name": "Kiln Creek",  "roster": "roster-kiln-creek-dolphins"},
-    "MBKMT": {"name": "Marlbank",    "roster": "roster-marlbank-mudtoads"},
-    "NHM":   {"name": "Northampton", "roster": "roster-northampton"},
-    "POQ":   {"name": "Poquoson",    "roster": "roster-poquoson-barracudas"},
-    "RRST":  {"name": "Riverdale",   "roster": "roster-riverdale-rays"},
-    "RMMR":  {"name": "Running Man", "roster": "roster-running-man-manta-rays"},
-    "VG":    {"name": "Village Green", "roster": "roster-village-green-patriots"},
-    "WW":    {"name": "Wendwood",    "roster": "roster-wendwood-wahoos"},
-    "WO":    {"name": "Willow Oaks", "roster": "roster-willow-oaks-sting-rays"},
-    "WPPIR": {"name": "Windy Point", "roster": "roster-windy-point-piranhas"},
-    "WYCC":  {"name": "Warwick Yacht", "roster": "roster-warwick-yacht-sea-turtles"},
-    "WYTHE": {"name": "Wythe",       "roster": "roster-wythe-wahoos"},
+    "BLMAR": {"name": "Beaconsdale",   "roster": "roster-beaconsdale-blue-marlins",              "anchor": "Beaconsdale"},
+    "BLMR":  {"name": "Beaconsdale",   "roster": "roster-beaconsdale-blue-marlins",              "anchor": "Beaconsdale"},
+    "COL":   {"name": "Colony",         "roster": "roster-colony-cudas",                          "anchor": "Colony"},
+    "CV":    {"name": "Coventry",       "roster": "roster-coventry-sailfish",                     "anchor": "Coventry"},
+    "EL":    {"name": "Elizabeth Lake", "roster": "roster-elizabeth-lake-tideriders",              "anchor": "Elizabeth_Lake"},
+    "GWRA":  {"name": "George Wythe",   "roster": "roster-george-wythe-recreation-association",   "anchor": "George_Wythe"},
+    "GG":    {"name": "Glendale",       "roster": "roster-glendale-gators",                       "anchor": "Glendale"},
+    "HW":    {"name": "Hidenwood",      "roster": "roster-hidenwood-tarpons",                     "anchor": "Hidenwood"},
+    "JRCC":  {"name": "James River",    "roster": "roster-james-river-river-ratz",                "anchor": "James_River"},
+    "KCD":   {"name": "Kiln Creek",     "roster": "roster-kiln-creek-dolphins",                   "anchor": "Kiln_Creek"},
+    "MBKMT": {"name": "Marlbank",       "roster": "roster-marlbank-mudtoads",                     "anchor": "Marlbank"},
+    "NHM":   {"name": "Northampton",    "roster": "roster-northampton",                           "anchor": "Northampton"},
+    "POQ":   {"name": "Poquoson",       "roster": "roster-poquoson-barracudas",                   "anchor": "Poquoson"},
+    "RRST":  {"name": "Riverdale",      "roster": "roster-riverdale-rays",                        "anchor": "Riverdale"},
+    "RMMR":  {"name": "Running Man",    "roster": "roster-running-man-manta-rays",                "anchor": "Running_Man"},
+    "VG":    {"name": "Village Green",  "roster": "roster-village-green-patriots",                 "anchor": "Village_Green"},
+    "WW":    {"name": "Wendwood",       "roster": "roster-wendwood-wahoos",                       "anchor": "Wendwood"},
+    "WO":    {"name": "Willow Oaks",    "roster": "roster-willow-oaks-sting-rays",                "anchor": "Willow_Oaks"},
+    "WPPIR": {"name": "Windy Point",    "roster": "roster-windy-point-piranhas",                  "anchor": "Windy_Point"},
+    "WYCC":  {"name": "Warwick Yacht",  "roster": "roster-warwick-yacht-sea-turtles",             "anchor": "Warwick_Yacht"},
+    "WYTHE": {"name": "Wythe",          "roster": "roster-wythe-wahoos",                          "anchor": "Wythe"},
 }
 
 ROSTER_BASE_URL = "https://www.gpsaswimming.org"
@@ -73,6 +74,12 @@ def team_roster_url(abbr):
     if entry:
         return f"{ROSTER_BASE_URL}/{entry['roster']}"
     return None
+
+
+def team_anchor(abbr):
+    """Resolve team abbreviation to teams page anchor slug."""
+    entry = TEAM_MAP.get(abbr.strip())
+    return entry["anchor"] if entry else abbr.strip()
 
 
 def extract_teams_from_csv(path):
@@ -166,7 +173,7 @@ def build():
         # Extract teams for roster page
         team_abbrs = extract_teams_from_csv(csv_path)
         division_rosters[division] = [
-            {"name": team_name(a), "url": team_roster_url(a)}
+            {"name": team_name(a), "url": team_roster_url(a), "anchor": team_anchor(a)}
             for a in team_abbrs
         ]
 
@@ -202,6 +209,17 @@ def build():
             year=year,
         )
         out_path = dist / "divisions.html"
+        out_path.write_text(output)
+        print(f"  Built {out_path.name}")
+
+    # Build teams page (quick access anchors) from CSV-derived teams
+    if division_rosters:
+        teams_template = env.get_template("teams.html.j2")
+        output = teams_template.render(
+            divisions=[division_rosters.get(d, []) for d in DIVISIONS],
+            year=year,
+        )
+        out_path = dist / "teams.html"
         out_path.write_text(output)
         print(f"  Built {out_path.name}")
 
