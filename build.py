@@ -29,7 +29,7 @@ TEAM_MAP = {
     "COL":   {"name": "Colony",         "roster": "roster-colony-cudas",                          "anchor": "Colony"},
     "CV":    {"name": "Coventry",       "roster": "roster-coventry-sailfish",                     "anchor": "Coventry"},
     "EL":    {"name": "Elizabeth Lake", "roster": "roster-elizabeth-lake-tideriders",              "anchor": "Elizabeth_Lake"},
-    "GWRA":  {"name": "George Wythe",   "roster": "roster-george-wythe-recreation-association",   "anchor": "George_Wythe"},
+    "GWRA":  {"name": "George Wythe",   "roster": "roster-george-wythe-recreation-association",   "anchor": "Wythe"},
     "GG":    {"name": "Glendale",       "roster": "roster-glendale-gators",                       "anchor": "Glendale"},
     "HW":    {"name": "Hidenwood",      "roster": "roster-hidenwood-tarpons",                     "anchor": "Hidenwood"},
     "JRCC":  {"name": "James River",    "roster": "roster-james-river-river-ratz",                "anchor": "James_River"},
